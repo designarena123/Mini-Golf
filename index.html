@@ -1,766 +1,614 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>3D Mini-Putt PWA</title>
-    <!-- iOS PWA Meta Tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
-    <style>
-        :root {
-            --bg-dark: #090d16;
-            --card-bg: #131c2e;
-            --text-main: #f8fafc;
-            --text-muted: #64748b;
-            --accent-blue: #38bdf8;
-            --accent-green: #34d399;
-            --danger: #f43f5e;
-            --fairway-top: #10b981;
-            --fairway-side: #059669;
-            --wall-top: #475569;
-            --wall-side: #334155;
-            --water: #0284c7;
-        }
+<meta charset="UTF-8">
+<title>Mini Putt 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b1016">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1016;
+    --card:#141b24;
+    --card-border:#232e3b;
+    --text:#e6edf3;
+    --text-dim:#8b98a5;
+    --accent:#34d399;
+    --accent2:#60a5fa;
+    --danger:#f87171;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{
+    position:fixed; inset:0; width:100%; height:100%;
+    margin:0; padding:0; overflow:hidden; overscroll-behavior:none;
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+    touch-action:none;
+  }
+  #app{ position:fixed; inset:0; }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            -webkit-user-select: none;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
+  /* ---------- MENU ---------- */
+  #menuScreen{
+    position:absolute; inset:0; display:none; flex-direction:column;
+    padding: max(28px, env(safe-area-inset-top)) 20px 20px 20px;
+    overflow-y:auto;
+  }
+  #menuScreen.active{ display:flex; }
+  .menu-header{ margin-bottom:22px; }
+  .menu-header h1{ font-size:26px; font-weight:800; margin:0 0 4px 0; letter-spacing:-0.3px; }
+  .menu-header p{ margin:0; color:var(--text-dim); font-size:14px; }
+  .course-list{ display:flex; flex-direction:column; gap:14px; }
+  .course-card{
+    display:flex; align-items:center; gap:14px;
+    background:linear-gradient(145deg, var(--card), #0f151c);
+    border:1px solid var(--card-border); border-radius:18px;
+    padding:16px; min-height:80px;
+    touch-action:manipulation;
+    transition:transform .12s ease, border-color .12s ease;
+  }
+  .course-card:active{ transform:scale(0.97); border-color:var(--accent); }
+  .course-badge{
+    width:44px; height:44px; min-width:44px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:18px; color:#04140d;
+    background:linear-gradient(145deg, var(--accent), #10a874);
+  }
+  .course-card:nth-child(2) .course-badge{ background:linear-gradient(145deg, var(--accent2), #3b82f6); color:#071226;}
+  .course-card:nth-child(3) .course-badge{ background:linear-gradient(145deg,#fbbf24,#f59e0b); color:#241a03;}
+  .course-info h3{ margin:0 0 3px 0; font-size:16px; font-weight:700; }
+  .course-info p{ margin:0; font-size:12.5px; color:var(--text-dim); line-height:1.35;}
+  .course-arrow{ margin-left:auto; color:var(--text-dim); font-size:20px; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            overflow: hidden;
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
-        }
+  /* ---------- GAME ---------- */
+  #gameScreen{ position:absolute; inset:0; display:none; }
+  #gameScreen.active{ display:block; }
+  #canvasContainer{ position:absolute; inset:0; touch-action:none; }
+  #canvasContainer canvas{ display:block; touch-action:none; }
 
-        .view {
-            display: none;
-            flex-direction: column;
-            width: 100%;
-            height: 100%;
-            padding: 24px;
-        }
+  #topBar{
+    position:absolute; top:0; left:0; right:0;
+    padding: max(14px, env(safe-area-inset-top)) 14px 12px 14px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:linear-gradient(180deg, rgba(11,16,22,0.92), rgba(11,16,22,0));
+    z-index:5;
+  }
+  .hud-left{ display:flex; flex-direction:column; gap:2px; }
+  #courseName{ font-size:15px; font-weight:800; letter-spacing:-0.2px; }
+  #strokesRow{ font-size:12.5px; color:var(--text-dim); }
+  #strokesCount{ color:var(--accent); font-weight:800; }
+  .hud-buttons{ display:flex; gap:8px; }
+  .btn{
+    min-width:44px; min-height:44px; padding:0 14px; border-radius:12px;
+    border:1px solid var(--card-border); background:rgba(20,27,36,0.9);
+    color:var(--text); font-size:13px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:manipulation; backdrop-filter:blur(6px);
+  }
+  .btn:active{ background:rgba(52,211,153,0.18); border-color:var(--accent); }
 
-        .view.active {
-            display: flex;
-        }
+  #aimHint{
+    position:absolute; bottom:calc(24px + env(safe-area-inset-bottom)); left:0; right:0;
+    text-align:center; font-size:13px; color:var(--text-dim);
+    pointer-events:none; z-index:4; transition:opacity .3s ease;
+  }
 
-        /* Menu View */
-        .menu-title {
-            text-align: center;
-            margin-top: 20px;
-            margin-bottom: 8px;
-            font-size: 32px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #f8fafc 0%, #38bdf8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
+  #toast{
+    position:absolute; bottom:calc(78px + env(safe-area-inset-bottom)); left:50%;
+    transform:translateX(-50%) translateY(10px); z-index:6;
+    background:rgba(248,113,113,0.15); border:1px solid var(--danger);
+    color:#fecaca; padding:9px 16px; border-radius:100px; font-size:13px; font-weight:600;
+    opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 
-        .menu-subtitle {
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 16px;
-            margin-bottom: 32px;
-        }
-
-        .course-card {
-            background-color: var(--card-bg);
-            border: 1px solid #1e293b;
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            display: flex;
-            flex-direction: column;
-            cursor: pointer;
-            touch-action: manipulation;
-        }
-
-        .course-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .course-name {
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .course-par {
-            font-size: 14px;
-            font-weight: 600;
-            background-color: #1e293b;
-            padding: 4px 12px;
-            border-radius: 20px;
-            color: var(--accent-blue);
-        }
-
-        .course-desc {
-            font-size: 14px;
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-
-        /* Game View */
-        #game-view {
-            padding: 0;
-            justify-content: space-between;
-            touch-action: none;
-        }
-
-        .game-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px;
-            background-color: var(--card-bg);
-            border-bottom: 1px solid #1e293b;
-            z-index: 5;
-        }
-
-        .game-info {
-            display: flex;
-            flex-direction: column;
-        }
-
-        #current-course-name {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        #stroke-display {
-            font-size: 14px;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-
-        .btn {
-            background-color: #1e293b;
-            color: var(--text-main);
-            border: 1px solid #334155;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            min-width: 44px;
-            min-height: 44px;
-            padding: 0 16px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-
-        .btn:active {
-            background-color: #334155;
-        }
-
-        .btn-danger {
-            background-color: #27141a;
-            color: var(--danger);
-            border: 1px solid #4c1d24;
-        }
-        .btn-danger:active {
-            background-color: #4c1d24;
-        }
-
-        .canvas-container {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--bg-dark);
-            position: relative;
-        }
-
-        canvas {
-            touch-action: none;
-        }
-
-        .game-footer {
-            display: flex;
-            justify-content: space-between;
-            padding: 16px;
-            background-color: var(--card-bg);
-            border-top: 1px solid #1e293b;
-            z-index: 5;
-        }
-
-        /* Overlay */
-        .victory-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(9, 13, 22, 0.9);
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 10;
-            padding: 24px;
-        }
-
-        .victory-overlay.active {
-            display: flex;
-        }
-
-        .banner-text {
-            font-size: 36px;
-            font-weight: 900;
-            margin-bottom: 8px;
-            color: var(--accent-green);
-        }
-
-        .banner-sub {
-            font-size: 18px;
-            margin-bottom: 24px;
-            color: var(--text-main);
-        }
-    </style>
+  #winOverlay{
+    position:absolute; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
+    background:rgba(5,8,12,0.72); backdrop-filter:blur(4px);
+    opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  #winOverlay.show{ opacity:1; pointer-events:auto; }
+  .win-card{
+    width:min(320px, 86vw); background:var(--card); border:1px solid var(--card-border);
+    border-radius:22px; padding:26px 22px; text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .win-card h2{ margin:0 0 8px 0; font-size:22px; font-weight:800; }
+  .win-card p{ margin:0 0 20px 0; color:var(--text-dim); font-size:14px; }
+  .win-buttons{ display:flex; gap:10px; }
+  .win-buttons .btn{ flex:1; height:48px; font-size:14px; }
+  .btn-primary{ background:linear-gradient(145deg, var(--accent), #10a874); color:#04140d; border:none; }
+</style>
 </head>
 <body>
+<div id="app">
 
-    <!-- MAIN MENU -->
-    <div id="menu-view" class="view active">
-        <h1 class="menu-title">Isometric Mini-Putt 3D</h1>
-        <p class="menu-subtitle">Select a 3D spatial course</p>
-
-        <div class="course-card" onclick="selectCourse(1)">
-            <div class="course-header">
-                <span class="course-name">1. The Straight Shot</span>
-                <span class="course-par">Par 2</span>
-            </div>
-            <p class="course-desc">A clean 3D linear platform. Line up your spatial trajectory vector cleanly for an ace.</p>
+  <div id="menuScreen" class="active">
+    <div class="menu-header">
+      <h1>⛳ Mini Putt 3D</h1>
+      <p>Pick a course. Drag back on the ball to aim, release to shoot.</p>
+    </div>
+    <div class="course-list">
+      <div class="course-card" data-course="1">
+        <div class="course-badge">1</div>
+        <div class="course-info">
+          <h3>The Straight Shot</h3>
+          <p>A flat, forgiving straightaway. Great for warming up.</p>
         </div>
-
-        <div class="course-card" onclick="selectCourse(2)">
-            <div class="course-header">
-                <span class="course-name">2. The Zig-Zag</span>
-                <span class="course-par">Par 3</span>
-            </div>
-            <p class="course-desc">An L-shaped elevated platform structure. Bank shots off the 3D slate blocks are required.</p>
+        <div class="course-arrow">›</div>
+      </div>
+      <div class="course-card" data-course="2">
+        <div class="course-badge">2</div>
+        <div class="course-info">
+          <h3>The Zig-Zag</h3>
+          <p>An L-shaped run with raised walls — bank your shot around the corner.</p>
         </div>
-
-        <div class="course-card" onclick="selectCourse(3)">
-            <div class="course-header">
-                <span class="course-name">3. The Island Green</span>
-                <span class="course-par">Par 3</span>
-            </div>
-            <p class="course-desc">An elevated island green surrounded completely by a rendering deep water drop-hazard.</p>
+        <div class="course-arrow">›</div>
+      </div>
+      <div class="course-card" data-course="3">
+        <div class="course-badge">3</div>
+        <div class="course-info">
+          <h3>The Island Green</h3>
+          <p>A raised platform, no rails. Fall off and it's back to the tee (+1).</p>
         </div>
+        <div class="course-arrow">›</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="gameScreen">
+    <div id="canvasContainer"></div>
+
+    <div id="topBar">
+      <div class="hud-left">
+        <div id="courseName">Course</div>
+        <div id="strokesRow">Strokes: <span id="strokesCount">0</span></div>
+      </div>
+      <div class="hud-buttons">
+        <button class="btn" id="resetBtn">Reset Ball</button>
+        <button class="btn" id="menuBtn">Menu</button>
+      </div>
     </div>
 
-    <!-- GAME VIEW -->
-    <div id="game-view" class="view">
-        <div class="game-header">
-            <div class="game-info">
-                <span id="current-course-name">Course 3D</span>
-                <span id="stroke-display">Strokes: 0 (Par 2)</span>
-            </div>
-            <button class="btn" onclick="backToMenu()">Main Menu</button>
-        </div>
+    <div id="aimHint">Drag back on the ball to aim, release to shoot</div>
+    <div id="toast"></div>
 
-        <div class="canvas-container">
-            <canvas id="gameCanvas"></canvas>
-            
-            <div id="victoryOverlay" class="victory-overlay">
-                <div class="banner-text" id="victoryBanner">Hole-in-One!</div>
-                <div class="banner-sub" id="victoryScore">Finished in 1 Stroke!</div>
-                <button class="btn" style="background-color: var(--accent-blue); color: #090d16; border: none; padding: 12px 24px;" onclick="resetLevel()">Play Again</button>
-            </div>
+    <div id="winOverlay">
+      <div class="win-card">
+        <h2 id="winTitle">Hole in One! 🎉</h2>
+        <p id="winSubtitle">Finished in 1 stroke</p>
+        <div class="win-buttons">
+          <button class="btn" id="winRetryBtn">Retry</button>
+          <button class="btn btn-primary" id="winMenuBtn">Main Menu</button>
         </div>
-
-        <div class="game-footer">
-            <button class="btn btn-danger" onclick="handleResetBallButton()">Reset Ball</button>
-            <span style="color: var(--text-muted); font-size: 13px; align-self: center;">Drag back on ball to shoot</span>
-        </div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+</div>
 
-        // Layout Screen Mapping Matrices
-        const CANVAS_WIDTH = 360;
-        const CANVAS_HEIGHT = 500;
-        canvas.width = CANVAS_WIDTH;
-        canvas.height = CANVAS_HEIGHT;
+<script>
+(function(){
+  'use strict';
 
-        // Spatial Physics Configuration Variables
-        const FRICTION = 0.982;
-        const GRAVITY = 0.4;
-        const BALL_RADIUS = 7;
-        const HOLE_RADIUS = 10;
-        const MAX_POWER = 16;
+  const COURSES = [
+    {
+      id:1, name:"The Straight Shot", par:2,
+      start:{x:0,z:1}, hole:{x:0,z:12,radius:0.5},
+      groundBounds:{minX:-2.2,maxX:2.2,minZ:-1.4,maxZ:14.4},
+      groundHeight:1.4, groundColor:0x1f6f4a,
+      walls:[
+        {x:-2.3,z:6.5,w:0.4,d:16,h:1.1},
+        {x:2.3,z:6.5,w:0.4,d:16,h:1.1},
+        {x:0,z:-1.3,w:5,d:0.4,h:1.1},
+        {x:0,z:14.3,w:5,d:0.4,h:1.1}
+      ],
+      edgeFall:false
+    },
+    {
+      id:2, name:"The Zig-Zag", par:3,
+      start:{x:0,z:1}, hole:{x:10,z:10,radius:0.5},
+      groundParts:[
+        {x:0,z:6,w:4.6,d:13.6},
+        {x:7,z:10,w:10.6,d:4.6}
+      ],
+      groundHeight:1.4, groundColor:0x1f6f4a,
+      walls:[
+        {x:-2.3,z:6,w:0.4,d:13.6,h:1.1},
+        {x:0,z:-1.3,w:5,d:0.4,h:1.1},
+        {x:2.3,z:4,w:0.4,d:9,h:1.1},
+        {x:7,z:7.7,w:10,d:0.4,h:1.1},
+        {x:5,z:12.3,w:14.6,d:0.4,h:1.1},
+        {x:12.3,z:10,w:0.4,d:5,h:1.1}
+      ],
+      edgeFall:false
+    },
+    {
+      id:3, name:"The Island Green", par:2,
+      start:{x:0,z:1}, hole:{x:0,z:8,radius:0.5},
+      groundBounds:{minX:-3,maxX:3,minZ:-1.2,maxZ:9.5},
+      groundHeight:2.6, groundColor:0x1b4f6b,
+      bounds:{minX:-3,maxX:3,minZ:-1.2,maxZ:9.5},
+      walls:[],
+      edgeFall:true
+    }
+  ];
 
-        let currentCourseId = 1;
-        let strokes = 0;
-        let gameOver = false;
+  let scene, camera, renderer, clock;
+  let ballMesh;
+  let ball = {x:0,y:0.35,z:0,vx:0,vz:0};
+  let currentCourse = null;
+  let strokes = 0;
+  let animFrameId = null;
+  let isAiming = false;
+  let dragStartX=0, dragStartY=0, currentDragX=0, currentDragY=0;
+  let arrowHelper = null;
+  let ballState = 'idle'; // idle | moving | falling | holed
+  const BALL_RADIUS = 0.35;
+  const FRICTION = 3.2;
+  const MAX_DRAG = 140;
+  const MAX_POWER = 11;
+  const STOP_THRESHOLD = 0.05;
+  const RESTITUTION = 0.65;
+  const dynamicObjects = [];
 
-        // 3D Engine Physics Tracking States (Representing native spatial coordinate mappings)
-        let ball = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, isFalling: false };
-        let hole = { x: 0, y: 0 };
-        let startTee = { x: 0, y: 0 };
-        
-        let blocks = []; // Structural 3D space blocks (x, y, w, h, height)
-        let hazards = []; // Deep drops maps
-        let coursePar = 2;
+  const menuScreen = document.getElementById('menuScreen');
+  const gameScreen = document.getElementById('gameScreen');
+  const canvasContainer = document.getElementById('canvasContainer');
+  const courseNameEl = document.getElementById('courseName');
+  const strokesEl = document.getElementById('strokesCount');
+  const winOverlay = document.getElementById('winOverlay');
+  const winTitle = document.getElementById('winTitle');
+  const winSubtitle = document.getElementById('winSubtitle');
+  const toastEl = document.getElementById('toast');
+  const aimHint = document.getElementById('aimHint');
 
-        let isAiming = false;
-        let dragStart = { x: 0, y: 0 };
-        let dragCurrent = { x: 0, y: 0 };
+  function initThree(){
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1016);
+    scene.fog = new THREE.Fog(0x0b1016, 18, 40);
 
-        // Prevent iOS Screen rubber-banding/pull-to-refresh behaviors
-        document.addEventListener('touchmove', function(e) {
-            if(document.getElementById('game-view').classList.contains('active')) {
-                e.preventDefault();
-            }
-        }, { passive: false });
+    camera = new THREE.PerspectiveCamera(50, canvasContainer.clientWidth/canvasContainer.clientHeight, 0.1, 100);
 
-        // Isometric Projector Map Core Math Equation
-        // Converts flat coordinates array space to 3D layout screen pixel rendering offsets
-        function project(x, y, z) {
-            const isoX = (x - y) * Math.cos(Math.PI / 6) + CANVAS_WIDTH / 2;
-            const isoY = (x + y) * Math.sin(Math.PI / 6) - z + CANVAS_HEIGHT / 3;
-            return { x: isoX, y: isoY };
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.style.touchAction = 'none';
+    canvasContainer.appendChild(renderer.domElement);
+
+    const ambient = new THREE.AmbientLight(0x8899aa, 0.65);
+    scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.95);
+    dir.position.set(8,14,-4);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(1024,1024);
+    dir.shadow.camera.left=-16; dir.shadow.camera.right=16;
+    dir.shadow.camera.top=16; dir.shadow.camera.bottom=-16;
+    scene.add(dir);
+
+    clock = new THREE.Clock();
+    window.addEventListener('resize', onResize);
+
+    renderer.domElement.addEventListener('touchstart', onTouchStart, {passive:false});
+    renderer.domElement.addEventListener('touchmove', onTouchMove, {passive:false});
+    renderer.domElement.addEventListener('touchend', onTouchEnd, {passive:false});
+    renderer.domElement.addEventListener('mousedown', onMouseDown);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('mouseup', onMouseUp);
+  }
+
+  function onResize(){
+    if(!renderer) return;
+    const w = canvasContainer.clientWidth, h = canvasContainer.clientHeight;
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  }
+
+  function clearCourse(){
+    dynamicObjects.forEach(o=>scene.remove(o));
+    dynamicObjects.length = 0;
+    if(arrowHelper){ scene.remove(arrowHelper); arrowHelper = null; }
+  }
+  function addObj(o){ scene.add(o); dynamicObjects.push(o); return o; }
+
+  function buildWallMesh(w){
+    const geo = new THREE.BoxGeometry(w.w, w.h, w.d);
+    const mat = new THREE.MeshStandardMaterial({color:0x3a4a5a, roughness:0.75});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(w.x, w.h/2, w.z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    addObj(mesh);
+  }
+  function buildGroundBox(g, color, height){
+    const geo = new THREE.BoxGeometry(g.w, height, g.d);
+    const mat = new THREE.MeshStandardMaterial({color: color, roughness:0.9});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(g.x, -height/2, g.z);
+    mesh.receiveShadow = true;
+    addObj(mesh);
+  }
+
+  function loadCourse(id){
+    clearCourse();
+    const course = COURSES.find(c=>c.id===id);
+    currentCourse = course;
+    strokes = 0;
+    ballState = 'idle';
+    updateHUD();
+    aimHint.style.opacity = '1';
+
+    if(course.groundParts){
+      course.groundParts.forEach(g=>buildGroundBox(g, course.groundColor, course.groundHeight));
+    } else {
+      const b = course.groundBounds;
+      buildGroundBox({x:(b.minX+b.maxX)/2, z:(b.minZ+b.maxZ)/2, w:b.maxX-b.minX, d:b.maxZ-b.minZ}, course.groundColor, course.groundHeight);
+    }
+    course.walls.forEach(buildWallMesh);
+
+    const holeGeo = new THREE.CircleGeometry(course.hole.radius, 32);
+    const holeMat = new THREE.MeshStandardMaterial({color:0x03060a});
+    const holeMesh = new THREE.Mesh(holeGeo, holeMat);
+    holeMesh.rotation.x = -Math.PI/2;
+    holeMesh.position.set(course.hole.x, 0.012, course.hole.z);
+    addObj(holeMesh);
+
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02,0.02,1.6,8),
+      new THREE.MeshStandardMaterial({color:0xdddddd})
+    );
+    pole.position.set(course.hole.x, 0.8, course.hole.z);
+    pole.castShadow = true;
+    addObj(pole);
+    const flag = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.42,0.28),
+      new THREE.MeshStandardMaterial({color:0x34d399, side:THREE.DoubleSide})
+    );
+    flag.position.set(course.hole.x+0.22, 1.45, course.hole.z);
+    addObj(flag);
+
+    if(!ballMesh){
+      ballMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(BALL_RADIUS, 24, 24),
+        new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4, metalness:0.05})
+      );
+      ballMesh.castShadow = true;
+    }
+    ballMesh.rotation.set(0,0,0);
+    scene.add(ballMesh);
+    dynamicObjects.push(ballMesh);
+
+    resetBall();
+    courseNameEl.textContent = course.name;
+
+    if(!animFrameId){
+      clock.start();
+      animate();
+    }
+  }
+
+  function resetBall(){
+    ball.x = currentCourse.start.x;
+    ball.z = currentCourse.start.z;
+    ball.y = BALL_RADIUS;
+    ball.vx = 0; ball.vz = 0;
+    ballState = 'idle';
+    ballMesh.scale.setScalar(1);
+    ballMesh.position.set(ball.x, ball.y, ball.z);
+    winOverlay.classList.remove('show');
+  }
+
+  function getRelPos(clientX, clientY){
+    const rect = renderer.domElement.getBoundingClientRect();
+    return {x:clientX-rect.left, y:clientY-rect.top};
+  }
+
+  function startAim(x,y){
+    if(ballState!=='idle') return;
+    isAiming = true;
+    dragStartX=x; dragStartY=y; currentDragX=x; currentDragY=y;
+    if(!arrowHelper){
+      arrowHelper = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(), 1, 0x34d399, 0.4, 0.22);
+      scene.add(arrowHelper);
+    }
+    arrowHelper.visible = false;
+  }
+  function moveAim(x,y){
+    if(!isAiming) return;
+    currentDragX=x; currentDragY=y;
+    const dx = currentDragX-dragStartX, dy = currentDragY-dragStartY;
+    const dragMag = Math.min(Math.sqrt(dx*dx+dy*dy), MAX_DRAG);
+    if(dragMag<6){ arrowHelper.visible=false; return; }
+    const shootX = -dx, shootZ = dy;
+    const len = Math.sqrt(shootX*shootX+shootZ*shootZ)||1;
+    const dir3 = new THREE.Vector3(shootX/len, 0, shootZ/len);
+    arrowHelper.position.set(ball.x, ball.y+0.05, ball.z);
+    arrowHelper.setDirection(dir3);
+    const arrowLen = 0.9 + (dragMag/MAX_DRAG)*3.2;
+    arrowHelper.setLength(arrowLen, 0.4, 0.2);
+    arrowHelper.visible = true;
+  }
+  function endAim(){
+    if(!isAiming) return;
+    isAiming = false;
+    const dx = currentDragX-dragStartX, dy = currentDragY-dragStartY;
+    const dragMag = Math.min(Math.sqrt(dx*dx+dy*dy), MAX_DRAG);
+    if(arrowHelper) arrowHelper.visible = false;
+    if(dragMag<6) return;
+    const shootX = -dx, shootZ = dy;
+    const len = Math.sqrt(shootX*shootX+shootZ*shootZ)||1;
+    const power = (dragMag/MAX_DRAG)*MAX_POWER;
+    ball.vx = (shootX/len)*power;
+    ball.vz = (shootZ/len)*power;
+    ballState = 'moving';
+    strokes++;
+    aimHint.style.opacity = '0';
+    updateHUD();
+  }
+
+  function onTouchStart(e){ e.preventDefault(); const t=e.touches[0]; const p=getRelPos(t.clientX,t.clientY); startAim(p.x,p.y); }
+  function onTouchMove(e){ e.preventDefault(); const t=e.touches[0]; const p=getRelPos(t.clientX,t.clientY); moveAim(p.x,p.y); }
+  function onTouchEnd(e){ e.preventDefault(); endAim(); }
+  function onMouseDown(e){ const p=getRelPos(e.clientX,e.clientY); startAim(p.x,p.y); }
+  function onMouseMove(e){ if(isAiming){ const p=getRelPos(e.clientX,e.clientY); moveAim(p.x,p.y); } }
+  function onMouseUp(){ endAim(); }
+
+  function resolveWall(w){
+    const halfW=w.w/2, halfD=w.d/2;
+    const closestX = Math.max(w.x-halfW, Math.min(ball.x, w.x+halfW));
+    const closestZ = Math.max(w.z-halfD, Math.min(ball.z, w.z+halfD));
+    const dx = ball.x-closestX, dz = ball.z-closestZ;
+    const distSq = dx*dx+dz*dz;
+    if(distSq < BALL_RADIUS*BALL_RADIUS){
+      let dist = Math.sqrt(distSq), nx, nz;
+      if(dist<0.0001){ nx=1; nz=0; dist=0.0001; } else { nx=dx/dist; nz=dz/dist; }
+      const penetration = BALL_RADIUS-dist;
+      ball.x += nx*penetration;
+      ball.z += nz*penetration;
+      const dot = ball.vx*nx+ball.vz*nz;
+      if(dot<0){
+        ball.vx -= (1+RESTITUTION)*dot*nx;
+        ball.vz -= (1+RESTITUTION)*dot*nz;
+      }
+    }
+  }
+
+  function updatePhysics(dt){
+    if(ballState==='moving'){
+      ball.x += ball.vx*dt;
+      ball.z += ball.vz*dt;
+
+      currentCourse.walls.forEach(resolveWall);
+
+      const speed = Math.sqrt(ball.vx*ball.vx+ball.vz*ball.vz);
+      if(speed>0){
+        const newSpeed = Math.max(0, speed-FRICTION*dt);
+        const scale = newSpeed/speed;
+        ball.vx*=scale; ball.vz*=scale;
+      }
+      const speed2 = Math.sqrt(ball.vx*ball.vx+ball.vz*ball.vz);
+      if(speed2>0.001){
+        const axis = new THREE.Vector3(-ball.vz,0,ball.vx).normalize();
+        ballMesh.rotateOnWorldAxis(axis, (speed2*dt)/BALL_RADIUS);
+      }
+
+      if(currentCourse.edgeFall){
+        const b = currentCourse.bounds;
+        if(ball.x < b.minX-0.1 || ball.x > b.maxX+0.1 || ball.z < b.minZ-0.1 || ball.z > b.maxZ+0.1){
+          ballState = 'falling';
         }
+      }
 
-        // Reverse map calculation specifically for tracking screen coordinate touch intersections
-        function unproject(screenX, screenY) {
-            // Approximation baseline targeting the 0-height plane for touch checking
-            const cX = screenX - CANVAS_WIDTH / 2;
-            const cY = screenY - CANVAS_HEIGHT / 3;
-            const cos30 = Math.cos(Math.PI / 6);
-            const sin30 = Math.sin(Math.PI / 6);
-            
-            const x = (cX / (2 * cos30)) + (cY / (2 * sin30));
-            const y = (cY / (2 * sin30)) - (cX / (2 * cos30));
-            return { x, y };
-        }
+      const hdx = ball.x-currentCourse.hole.x, hdz = ball.z-currentCourse.hole.z;
+      const hdist = Math.sqrt(hdx*hdx+hdz*hdz);
+      if(hdist < currentCourse.hole.radius*0.85 && speed2 < 5.5){
+        holeIn();
+      } else if(speed2 < STOP_THRESHOLD){
+        ball.vx=0; ball.vz=0; ballState='idle';
+      }
+      ballMesh.position.set(ball.x, ball.y, ball.z);
 
-        // Structural Maps Blueprints Configuration Matrices
-        const courses = {
-            1: {
-                name: "The Straight Shot 3D",
-                par: 2,
-                setup: () => {
-                    startTee = { x: 40, y: 220 };
-                    hole = { x: 40, y: 40 };
-                    // Base walkable fairway green blocks
-                    blocks = [
-                        { x: 0, y: 0, w: 80, h: 260, height: 15, isFairway: true }
-                    ];
-                    hazards = [];
-                }
-            },
-            2: {
-                name: "The Zig-Zag 3D",
-                par: 3,
-                setup: () => {
-                    startTee = { x: 40, y: 220 };
-                    hole = { x: 220, y: 40 };
-                    blocks = [
-                        // Connected L-Shaped block structures
-                        { x: 0, y: 160, w: 80, h: 100, height: 15, isFairway: true },
-                        { x: 0, y: 0, w: 260, h: 160, height: 15, isFairway: true },
-                        // Decorative/Structural obstacles wall blocks
-                        { x: 100, y: 80, w: 160, h: 80, height: 45, isFairway: false },
-                        { x: 0, y: 0, w: 60, h: 80, height: 45, isFairway: false }
-                    ];
-                    hazards = [];
-                }
-            },
-            3: {
-                name: "The Island Green 3D",
-                par: 3,
-                setup: () => {
-                    startTee = { x: 40, y: 220 };
-                    hole = { x: 220, y: 40 };
-                    blocks = [
-                        // Starting Area Platform
-                        { x: 0, y: 180, w: 80, h: 80, height: 15, isFairway: true },
-                        // Tiny connecting land bridge
-                        { x: 90, y: 130, w: 40, h: 40, height: 15, isFairway: true },
-                        // Destination Island Green Platform
-                        { x: 150, y: 0, w: 110, h: 110, height: 15, isFairway: true }
-                    ];
-                    // Deep hazardous water drops
-                    hazards = [
-                        { x: -50, y: -50, w: 400, h: 400 }
-                    ];
-                }
-            }
-        };
+    } else if(ballState==='falling'){
+      ball.y -= 6*dt;
+      ballMesh.position.set(ball.x, ball.y, ball.z);
+      ballMesh.scale.setScalar(Math.max(0.15, 1+ball.y*0.25));
+      if(ball.y < -4){
+        strokes++;
+        showToast('Off the green! +1 penalty');
+        ball.x = currentCourse.start.x;
+        ball.z = currentCourse.start.z;
+        ball.y = BALL_RADIUS;
+        ball.vx=0; ball.vz=0;
+        ballMesh.scale.setScalar(1);
+        ballMesh.position.set(ball.x, ball.y, ball.z);
+        ballState='idle';
+        updateHUD();
+      }
+    }
+  }
 
-        function selectCourse(id) {
-            currentCourseId = id;
-            document.getElementById('menu-view').classList.remove('active');
-            document.getElementById('game-view').classList.add('active');
-            initCourse();
-        }
+  function holeIn(){
+    ballState='holed';
+    ball.vx=0; ball.vz=0;
+    function shrink(){
+      ballMesh.position.set(currentCourse.hole.x, ballMesh.position.y-0.03, currentCourse.hole.z);
+      ballMesh.scale.multiplyScalar(0.92);
+      if(ballMesh.position.y > -0.3){
+        requestAnimationFrame(shrink);
+      } else {
+        showWin();
+      }
+    }
+    shrink();
+  }
 
-        function backToMenu() {
-            document.getElementById('game-view').classList.remove('active');
-            document.getElementById('menu-view').classList.add('active');
-            gameOver = false;
-        }
+  function showWin(){
+    winTitle.textContent = strokes===1 ? 'Hole in One! 🎉' : (strokes<=currentCourse.par ? 'Nice Shot! ⛳' : 'Hole Complete!');
+    winSubtitle.textContent = `Finished in ${strokes} stroke${strokes===1?'':'s'} (Par ${currentCourse.par})`;
+    winOverlay.classList.add('show');
+  }
 
-        function initCourse() {
-            const config = courses[currentCourseId];
-            document.getElementById('current-course-name').innerText = config.name;
-            coursePar = config.par;
-            strokes = 0;
-            gameOver = false;
-            document.getElementById('victoryOverlay').classList.remove('active');
-            updateUI();
-            config.setup();
-            resetBallToTee();
-        }
+  let toastTimer=null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 1800);
+  }
+  function updateHUD(){ strokesEl.textContent = strokes; }
 
-        function resetBallToTee() {
-            ball.x = startTee.x;
-            ball.y = startTee.y;
-            ball.z = 15; // Placed firmly on top of the 15px tall baseline platform block
-            ball.vx = 0;
-            ball.vy = 0;
-            ball.vz = 0;
-            ball.isFalling = false;
-        }
+  const camOffset = {x:0, y:8.5, z:-6.5};
+  const tmpCamPos = new THREE.Vector3();
+  function updateCamera(dt){
+    tmpCamPos.set(ball.x+camOffset.x, camOffset.y, ball.z+camOffset.z);
+    camera.position.lerp(tmpCamPos, Math.min(1, dt*4));
+    camera.lookAt(ball.x, 0, ball.z+1.5);
+  }
 
-        function handleResetBallButton() {
-            if (gameOver) return;
-            resetBallToTee();
-        }
+  function animate(){
+    animFrameId = requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    updatePhysics(dt);
+    updateCamera(dt);
+    renderer.render(scene, camera);
+  }
 
-        function resetLevel() {
-            initCourse();
-        }
+  document.querySelectorAll('.course-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const id = parseInt(card.dataset.course,10);
+      menuScreen.classList.remove('active');
+      gameScreen.classList.add('active');
+      if(!renderer) initThree();
+      onResize();
+      loadCourse(id);
+    });
+  });
 
-        function updateUI() {
-            document.getElementById('stroke-display').innerText = `Strokes: ${strokes} (Par ${coursePar})`;
-        }
+  document.getElementById('resetBtn').addEventListener('click', ()=>{ if(currentCourse) resetBall(); });
+  document.getElementById('menuBtn').addEventListener('click', goToMenu);
+  document.getElementById('winMenuBtn').addEventListener('click', goToMenu);
+  document.getElementById('winRetryBtn').addEventListener('click', ()=>{
+    winOverlay.classList.remove('show');
+    strokes = 0;
+    resetBall();
+    updateHUD();
+    aimHint.style.opacity = '1';
+  });
 
-        // --- Interaction Event Architecture ---
-        function getCanvasTouchPos(e) {
-            const rect = canvas.getBoundingClientRect();
-            const touch = e.touches[0];
-            return {
-                x: touch.clientX - rect.left,
-                y: touch.clientY - rect.top
-            };
-        }
+  function goToMenu(){
+    gameScreen.classList.remove('active');
+    menuScreen.classList.add('active');
+    winOverlay.classList.remove('show');
+  }
 
-        canvas.addEventListener('touchstart', (e) => {
-            if (gameOver || ball.isFalling) return;
-            if (Math.abs(ball.vx) > 0.1 || Math.abs(ball.vy) > 0.1 || Math.abs(ball.vz) > 0.1) return;
+  document.body.addEventListener('touchmove', function(e){
+    if(isAiming) e.preventDefault();
+  }, {passive:false});
 
-            const touchPos = getCanvasTouchPos(e);
-            const ballProjected = project(ball.x, ball.y, ball.z);
-            
-            const screenDist = Math.hypot(touchPos.x - ballProjected.x, touchPos.y - ballProjected.y);
-            if (screenDist < 40) { // Large mobile tracking bubble radius
-                isAiming = true;
-                dragStart = touchPos;
-                dragCurrent = touchPos;
-            }
-        });
-
-        canvas.addEventListener('touchmove', (e) => {
-            if (!isAiming) return;
-            dragCurrent = getCanvasTouchPos(e);
-        });
-
-        canvas.addEventListener('touchend', () => {
-            if (!isAiming) return;
-            isAiming = false;
-
-            const ballProj = project(ball.x, ball.y, ball.z);
-            // Calculate modern inverse slingshot direction components based on screen vectors
-            const dx = dragCurrent.x - dragStart.x;
-            const dy = dragCurrent.y - dragStart.y;
-
-            // Project flat physics vectors out of the 2D dragging coordinates matrix
-            let vx = -dx * 0.12;
-            let vy = -dy * 0.12;
-
-            const speed = Math.hypot(vx, vy);
-            if (speed > MAX_POWER) {
-                vx = (vx / speed) * MAX_POWER;
-                vy = (vy / speed) * MAX_POWER;
-            }
-
-            if (speed > 0.4) {
-                ball.vx = vx;
-                ball.vy = vy;
-                strokes++;
-                updateUI();
-            }
-        });
-
-        // --- Engine Loop & Isometric Polygon Matrix Drawing Pipeline ---
-        function drawIsometricBlock(x, y, w, h, height, fillTop, fillSide) {
-            // Coordinates configuration for all 8 cube corner coordinates vertices
-            const p1 = project(x, y, height);
-            const p2 = project(x + w, y, height);
-            const p3 = project(x + w, y + h, height);
-            const p4 = project(x, y + h, height);
-
-            const p5 = project(x, y, 0);
-            const p6 = project(x + w, y, 0);
-            const p7 = project(x + w, y + h, 0);
-            const p8 = project(x, y + h, 0);
-
-            // Side Right Panel Face Rendering
-            ctx.fillStyle = fillSide;
-            ctx.beginPath();
-            ctx.moveTo(p2.x, p2.y);
-            ctx.lineTo(p3.x, p3.y);
-            ctx.lineTo(p7.x, p7.y);
-            ctx.lineTo(p6.x, p6.y);
-            ctx.closePath();
-            ctx.fill();
-
-            // Side Left Panel Face Rendering
-            ctx.fillStyle = adjustBrightness(fillSide, -20);
-            ctx.beginPath();
-            ctx.moveTo(p3.x, p3.y);
-            ctx.lineTo(p4.x, p4.y);
-            ctx.lineTo(p8.x, p8.y);
-            ctx.lineTo(p7.x, p7.y);
-            ctx.closePath();
-            ctx.fill();
-
-            // Top Panel Face Rendering
-            ctx.fillStyle = fillTop;
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p3.x, p3.y);
-            ctx.lineTo(p4.x, p4.y);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Subtle grid mesh lines to aid spatial depth processing
-            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        }
-
-        function adjustBrightness(hex, percent) {
-            let R = parseInt(hex.substring(1, 3), 16);
-            let G = parseInt(hex.substring(3, 5), 16);
-            let B = parseInt(hex.substring(5, 7), 16);
-            R = parseInt(R * (100 + percent) / 100);
-            G = parseInt(G * (100 + percent) / 100);
-            B = parseInt(B * (100 + percent) / 100);
-            R = (R < 255) ? R : 255; G = (G < 255) ? G : 255; B = (B < 255) ? B : 255;
-            const rHex = ((R.toString(16).length === 1) ? "0" + R.toString(16) : R.toString(16));
-            const gHex = ((G.toString(16).length === 1) ? "0" + G.toString(16) : G.toString(16));
-            const bHex = ((B.toString(16).length === 1) ? "0" + B.toString(16) : B.toString(16));
-            return "#" + rHex + gHex + bHex;
-        }
-
-        function checkPhysicsEngine() {
-            if (gameOver) return;
-
-            // Apply horizontal positions tracking
-            ball.x += ball.vx;
-            ball.y += ball.vy;
-            ball.z += ball.vz;
-
-            // Retain velocities dampening decay values
-            if (!ball.isFalling) {
-                ball.vx *= FRICTION;
-                ball.vy *= FRICTION;
-                if (Math.abs(ball.vx) < 0.04) ball.vx = 0;
-                if (Math.abs(ball.vy) < 0.04) ball.vy = 0;
-            } else {
-                // Apply spatial downward gravity drop vector
-                ball.vz -= GRAVITY;
-                if (ball.z < -100) { // Off screen execution trigger limits
-                    strokes++; // Reset water hazard penalty structural addition
-                    updateUI();
-                    resetBallToTee();
-                    return;
-                }
-            }
-
-            // Loop checking block space intersections structures
-            let currentPlatform = null;
-            for (let block of blocks) {
-                if (ball.x >= block.x && ball.x <= block.x + block.w &&
-                    ball.y >= block.y && ball.y <= block.y + block.h) {
-                    if (block.isFairway) {
-                        currentPlatform = block;
-                    } else {
-                        // Solid obstacle block boundary collision ricochet math
-                        handleWallBounce(block);
-                    }
-                }
-            }
-
-            // Handle air tracking updates or transition onto hazards surfaces
-            if (!ball.isFalling) {
-                if (currentPlatform) {
-                    ball.z = currentPlatform.height; // Clamp perfectly straight down onto floor
-                    ball.vz = 0;
-                } else {
-                    // Left platform boundary space, initiate gravity sequence fall trigger
-                    ball.isFalling = true;
-                }
-            }
-
-            // Goal detection check
-            const distToHole = Math.hypot(ball.x - hole.x, ball.y - hole.y);
-            if (distToHole < HOLE_RADIUS && !ball.isFalling && ball.z <= 16) {
-                if (Math.hypot(ball.vx, ball.vy) < 4) {
-                    triggerWinState();
-                }
-            }
-        }
-
-        function handleWallBounce(block) {
-            // Determine shallowest depth entries vector to deflect velocity components natively
-            const fromLeft = Math.abs(ball.x - block.x);
-            const fromRight = Math.abs(ball.x - (block.x + block.w));
-            const fromTop = Math.abs(ball.y - block.y);
-            const fromBottom = Math.abs(ball.y - (block.y + block.h));
-
-            const min = Math.min(fromLeft, fromRight, fromTop, fromBottom);
-
-            if (min === fromLeft) {
-                ball.x = block.x - 2;
-                ball.vx *= -1;
-            } else if (min === fromRight) {
-                ball.x = block.x + block.w + 2;
-                ball.vx *= -1;
-            } else if (min === fromTop) {
-                ball.y = block.y - 2;
-                ball.vy *= -1;
-            } else if (min === fromBottom) {
-                ball.y = block.y + block.h + 2;
-                ball.vy *= -1;
-            }
-        }
-
-        function triggerWinState() {
-            gameOver = true;
-            ball.vx = 0;
-            ball.vy = 0;
-            ball.x = hole.x;
-            ball.y = hole.y;
-
-            let banner = "Par!";
-            const diff = strokes - coursePar;
-
-            if (strokes === 1) banner = "Hole-in-One!";
-            else if (diff === -1) banner = "Birdie!";
-            else if (diff === -2) banner = "Eagle!";
-            else if (diff > 0) banner = "Nice Put!";
-
-            document.getElementById('victoryBanner').innerText = banner;
-            document.getElementById('victoryScore').innerText = `Finished in ${strokes} ${strokes === 1 ? 'Stroke' : 'Strokes'}!`;
-            document.getElementById('victoryOverlay').classList.add('active');
-        }
-
-        function mainRenderPipeline() {
-            checkPhysicsEngine();
-
-            // Clear visual buffers completely
-            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-            // Render water background scene depth layers if course 3 is processing
-            if (currentCourseId === 3) {
-                ctx.fillStyle = '#0c1a30';
-                ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-                // Draw decorative hazard block lines deep down in spatial frame base layer
-                drawIsometricBlock(-50, -50, 360, 360, 2, '#0284c7', '#0369a1');
-            }
-
-            // Draw level geometries sorted by depth matrix properties sequentially
-            blocks.forEach(block => {
-                if (block.isFairway) {
-                    drawIsometricBlock(block.x, block.y, block.w, block.h, block.height, '#10b981', '#059669');
-                } else {
-                    drawIsometricBlock(block.x, block.y, block.w, block.h, block.height, '#475569', '#334155');
-                }
-            });
-
-            // Draw Target Hole Rim overlay calculations
-            const holeProj = project(hole.x, hole.y, 15);
-            ctx.beginPath();
-            ctx.ellipse(holeProj.x, holeProj.y, HOLE_RADIUS, HOLE_RADIUS * 0.5, 0, 0, Math.PI * 2);
-            ctx.fillStyle = '#000000';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-            ctx.stroke();
-
-            // Draw Active Shot Trajectory Vector Line Layer
-            if (isAiming && !ball.isFalling) {
-                const ballProj = project(ball.x, ball.y, ball.z);
-                const dx = dragCurrent.x - dragStart.x;
-                const dy = dragCurrent.y - dragStart.y;
-
-                ctx.beginPath();
-                ctx.moveTo(ballProj.x, ballProj.y);
-                ctx.lineTo(ballProj.x - dx, ballProj.y - dy);
-                ctx.strokeStyle = '#f43f5e';
-                ctx.lineWidth = 3;
-                ctx.setLineDash([4, 4]);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Visual target anchor feedback circle indicator
-                ctx.beginPath();
-                ctx.arc(dragCurrent.x, dragCurrent.y, 6, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(244, 63, 94, 0.6)';
-                ctx.fill();
-            }
-
-            // Render physical Golf Ball tracking circle elements on screen space positions
-            const ballProj = project(ball.x, ball.y, ball.z);
-            
-            // Draw spherical projection shadows values directly beneath ball coordinates height planes
-            if (ball.z > 0) {
-                const shadowProj = project(ball.x, ball.y, 15);
-                ctx.beginPath();
-                ctx.ellipse(shadowProj.x, shadowProj.y, BALL_RADIUS, BALL_RADIUS * 0.5, 0, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.fill();
-            }
-
-            // Draw actual ball body sphere graphic element overlay
-            ctx.beginPath();
-            ctx.arc(ballProj.x, ballProj.y, BALL_RADIUS, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
-            ctx.fill();
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-
-            requestAnimationFrame(mainRenderPipeline);
-        }
-
-        // Initialize spatial game pipeline loop
-        requestAnimationFrame(mainRenderPipeline);
-    </script>
+})();
+</script>
 </body>
-</html> 
+</html>
