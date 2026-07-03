@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mini-Putt PWA</title>
+    <!-- iOS PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #0ea5e9;
+            --accent-green: #10b981;
+            --danger: #ef4444;
+            --fairway: #15803d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Views Configuration */
+        .view {
+            display: none;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .view.active {
+            display: flex;
+        }
+
+        /* Main Menu Styling */
+        .menu-title {
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .menu-subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+
+        .course-card {
+            background-color: var(--card-bg);
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            min-height: 110px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+            touch-action: manipulation;
+        }
+
+        .course-card:active {
+            transform: scale(0.98);
+            background-color: #273549;
+        }
+
+        .course-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .course-name {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .course-par {
+            font-size: 14px;
+            font-weight: 600;
+            background-color: #334155;
+            padding: 4px 10px;
+            border-radius: 20px;
+            color: var(--accent-blue);
+        }
+
+        .course-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* Game Screen Styling */
+        #game-view {
+            padding: 0;
+            justify-content: space-between;
+            touch-action: none;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid #334155;
+        }
+
+        .game-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #current-course-name {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        #stroke-display {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .btn {
+            background-color: #334155;
+            color: var(--text-main);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            min-width: 44px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .btn:active {
+            background-color: #475569;
+        }
+
+        .btn-danger {
+            background-color: #451a03;
+            color: #f97316;
+            border: 1px solid #7c2d12;
+        }
+        .btn-danger:active {
+            background-color: #7c2d12;
+        }
+
+        /* Canvas Wrap container */
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-dark);
+            position: relative;
+        }
+
+        canvas {
+            background-color: var(--fairway);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Game Bottom controls */
+        .game-footer {
+            display: flex;
+            justify-content: space-between;
+            padding: 16px;
+            background-color: var(--card-bg);
+            border-top: 1px solid #334155;
+        }
+
+        /* Overlay/Banner styles */
+        .victory-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 23, 42, 0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .victory-overlay.active {
+            display: flex;
+        }
+
+        .banner-text {
+            font-size: 36px;
+            font-weight: 900;
+            margin-bottom: 8px;
+            color: var(--accent-green);
+        }
+
+        .banner-sub {
+            font-size: 18px;
+            color: var(--text-main);
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- MAIN MENU VIEW -->
+    <div id="menu-view" class="view active">
+        <h1 class="menu-title">Mini-Putt PWA</h1>
+        <p class="menu-subtitle">Select a course to tee off</p>
+
+        <div class="course-card" onclick="selectCourse(1)">
+            <div class="course-header">
+                <span class="course-name">1. The Straight Shot</span>
+                <span class="course-par">Par 2</span>
+            </div>
+            <p class="course-desc">A perfect linear fairway. Gauge your power and perfect your alignment for an easy ace.</p>
+        </div>
+
+        <div class="course-card" onclick="selectCourse(2)">
+            <div class="course-header">
+                <span class="course-name">2. The Zig-Zag</span>
+                <span class="course-par">Par 3</span>
+            </div>
+            <p class="course-desc">An L-shaped obstacle course. Use structural bank shots to ricochet past the security barrier.</p>
+        </div>
+
+        <div class="course-card" onclick="selectCourse(3)">
+            <div class="course-header">
+                <span class="course-name">3. The Island Green</span>
+                <span class="course-par">Par 3</span>
+            </div>
+            <p class="course-desc">High stakes layout. Surrounded completely by open deep-water hazards. Reset penalty rules apply.</p>
+        </div>
+    </div>
+
+    <!-- GAMEPLAY VIEW -->
+    <div id="game-view" class="view">
+        <div class="game-header">
+            <div class="game-info">
+                <span id="current-course-name">Course Layout</span>
+                <span id="stroke-display">Strokes: 0 (Par 2)</span>
+            </div>
+            <button class="btn" onclick="backToMenu()">Main Menu</button>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- Victory HUD Overlay -->
+            <div id="victoryOverlay" class="victory-overlay">
+                <div class="banner-text" id="victoryBanner">Hole-in-One!</div>
+                <div class="banner-sub" id="victoryScore">Finished in 1 Stroke!</div>
+                <button class="btn" style="background-color: var(--accent-blue); padding: 12px 24px;" onclick="resetLevel()">Play Again</button>
+            </div>
+        </div>
+
+        <div class="game-footer">
+            <button class="btn btn-danger" onclick="handleResetBallButton()">Reset Ball</button>
+            <span style="color: var(--text-muted); font-size: 12px; align-self: center;">Drag backward from ball to aim</span>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Layout Scaling parameters built for modern display constraints
+        const CANVAS_WIDTH = 360;
+        const CANVAS_HEIGHT = 500;
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
+
+        // Core State Constants
+        const FRICTION = 0.985;
+        const BALL_RADIUS = 8;
+        const HOLE_RADIUS = 12;
+        const MAX_SHOT_POWER = 18;
+
+        // State Machine variables 
+        let currentCourseId = 1;
+        let strokes = 0;
+        let gameOver = false;
+
+        // Physical Object Instantiations
+        let ball = { x: 0, y: 0, vx: 0, vy: 0 };
+        let hole = { x: 0, y: 0 };
+        let startTee = { x: 0, y: 0 };
+        
+        let walls = [];
+        let hazards = [];
+        let coursePar = 2;
+
+        // Input Tracking variables
+        let isAiming = false;
+        let touchStartPos = { x: 0, y: 0 };
+        let touchCurrentPos = { x: 0, y: 0 };
+
+        // Prevent layout rubber-banding on viewport boundaries
+        document.addEventListener('touchmove', function(e) {
+            if(e.target.tagName === 'CANVAS' || document.getElementById('game-view').classList.contains('active')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Configuration matrices for unique levels
+        const courseDefinitions = {
+            1: {
+                name: "The Straight Shot",
+                par: 2,
+                setup: () => {
+                    startTee = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 60 };
+                    hole = { x: CANVAS_WIDTH / 2, y: 70 };
+                    walls = [];
+                    hazards = [];
+                }
+            },
+            2: {
+                name: "The Zig-Zag",
+                par: 3,
+                setup: () => {
+                    startTee = { x: 70, y: CANVAS_HEIGHT - 60 };
+                    hole = { x: CANVAS_WIDTH - 70, y: 70 };
+                    hazards = [];
+                    // Walls bounding central labyrinth patterns
+                    walls = [
+                        // Left defense barrier block
+                        { x: 0, y: CANVAS_HEIGHT / 2 - 15, w: CANVAS_WIDTH * 0.65, h: 30 },
+                        // Right drop barrier block
+                        { x: CANVAS_WIDTH * 0.35, y: CANVAS_HEIGHT / 3 - 15, w: CANVAS_WIDTH * 0.65, h: 30 }
+                    ];
+                }
+            },
+            3: {
+                name: "The Island Green",
+                par: 3,
+                setup: () => {
+                    startTee = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 60 };
+                    hole = { x: CANVAS_WIDTH / 2, y: 80 };
+                    walls = [];
+                    // Mid-field open deep water chasm layout patterns
+                    hazards = [
+                        { x: 0, y: 150, w: CANVAS_WIDTH, h: 180 }
+                    ];
+                    // Create narrow land bridges to navigate island
+                    walls = [
+                        { x: 0, y: 150, w: 60, h: 180 },
+                        { x: CANVAS_WIDTH - 60, y: 150, w: 60, h: 180 }
+                    ];
+                }
+            }
+        };
+
+        function selectCourse(id) {
+            currentCourseId = id;
+            document.getElementById('menu-view').classList.remove('active');
+            document.getElementById('game-view').classList.add('active');
+            initCourse();
+        }
+
+        function backToMenu() {
+            document.getElementById('game-view').classList.remove('active');
+            document.getElementById('menu-view').classList.add('active');
+            gameOver = false;
+            document.getElementById('victoryOverlay').classList.remove('active');
+        }
+
+        function initCourse() {
+            const config = courseDefinitions[currentCourseId];
+            document.getElementById('current-course-name').innerText = config.name;
+            coursePar = config.par;
+            strokes = 0;
+            gameOver = false;
+            document.getElementById('victoryOverlay').classList.remove('active');
+            updateUI();
+            config.setup();
+            resetBallToTee();
+        }
+
+        function resetBallToTee() {
+            ball.x = startTee.x;
+            ball.y = startTee.y;
+            ball.vx = 0;
+            ball.vy = 0;
+        }
+
+        function handleResetBallButton() {
+            if (gameOver) return;
+            resetBallToTee();
+        }
+
+        function resetLevel() {
+            initCourse();
+        }
+
+        function updateUI() {
+            document.getElementById('stroke-display').innerText = `Strokes: ${strokes} (Par ${coursePar})`;
+        }
+
+        // --- Interaction Event Architecture ---
+        function getCanvasTouchPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (gameOver) return;
+            // Only allow aiming if the ball has come completely to rest
+            if (Math.abs(ball.vx) > 0.1 || Math.abs(ball.vy) > 0.1) return;
+
+            const pos = getCanvasTouchPos(e);
+            // Verify structural hit window overlap with ball coordinates
+            const dist = Math.hypot(pos.x - ball.x, pos.y - ball.y);
+            if (dist < 30) { // Large touch threshold for natural screen manipulation
+                isAiming = true;
+                touchStartPos = { x: ball.x, y: ball.y };
+                touchCurrentPos = pos;
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!isAiming) return;
+            touchCurrentPos = getCanvasTouchPos(e);
+        });
+
+        canvas.addEventListener('touchend', () => {
+            if (!isAiming) return;
+            isAiming = false;
+
+            // Compute shot metrics based on drag parameters
+            const dx = touchCurrentPos.x - ball.x;
+            const dy = touchCurrentPos.y - ball.y;
+            
+            // Reverse direction for modern standard intuitive slingshot firing mechanic
+            let vx = -dx * 0.15;
+            let vy = -dy * 0.15;
+
+            // Clamping vector output values to limit physics clipping
+            const speed = Math.hypot(vx, vy);
+            if (speed > MAX_SHOT_POWER) {
+                vx = (vx / speed) * MAX_SHOT_POWER;
+                vy = (vy / speed) * MAX_SHOT_POWER;
+            }
+
+            if (Math.hypot(vx, vy) > 0.5) {
+                ball.vx = vx;
+                ball.vy = vy;
+                strokes++;
+                updateUI();
+            }
+        });
+
+        // --- Engine Loop & Collision Math Framework ---
+        function checkCollisions() {
+            // Standard bounding outer canvas frame updates
+            if (ball.x - BALL_RADIUS < 0) {
+                ball.x = BALL_RADIUS;
+                ball.vx *= -1;
+            } else if (ball.x + BALL_RADIUS > CANVAS_WIDTH) {
+                ball.x = CANVAS_WIDTH - BALL_RADIUS;
+                ball.vx *= -1;
+            }
+
+            if (ball.y - BALL_RADIUS < 0) {
+                ball.y = BALL_RADIUS;
+                ball.vy *= -1;
+            } else if (ball.y + BALL_RADIUS > CANVAS_HEIGHT) {
+                ball.y = CANVAS_HEIGHT - BALL_RADIUS;
+                ball.vy *= -1;
+            }
+
+            // AABB Solid Wall Barrier Collision Metrics
+            for (let wall of walls) {
+                let closestX = Math.max(wall.x, Math.min(ball.x, wall.x + wall.w));
+                let closestY = Math.max(wall.y, Math.min(ball.y, wall.y + wall.h));
+                let distanceX = ball.x - closestX;
+                let distanceY = ball.y - closestY;
+                let distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+                if (distanceSquared < (BALL_RADIUS * BALL_RADIUS)) {
+                    // Overlap calculated. Bounce based on shallowest side axis entry vectors
+                    let overlapX = BALL_RADIUS - Math.abs(distanceX);
+                    let overlapY = BALL_RADIUS - Math.abs(distanceY);
+
+                    if (closestX === wall.x || closestX === wall.x + wall.w) {
+                        if (closestY === wall.y || closestY === wall.y + wall.h) {
+                            // Corner hit resolution
+                            ball.vx *= -1;
+                            ball.vy *= -1;
+                        } else {
+                            ball.vx *= -1;
+                            ball.x += distanceX > 0 ? overlapX : -overlapX;
+                        }
+                    } else {
+                        ball.vy *= -1;
+                        ball.y += distanceY > 0 ? overlapY : -overlapY;
+                    }
+                }
+            }
+
+            // Hazard Overlap Evaluation
+            if (Math.abs(ball.vx) < 2 && Math.abs(ball.vy) < 2) {
+                // Check when moving slowly or passing through
+            }
+            
+            for (let hazard of hazards) {
+                // Ensure ball is considered deep in the hazard, checking center position
+                if (ball.x > hazard.x && ball.x < hazard.x + hazard.w &&
+                    ball.y > hazard.y && ball.y < hazard.y + hazard.h) {
+                    
+                    // Verify if ball is saved by a safe structural bridge wall overlay
+                    let safe = false;
+                    for (let wall of walls) {
+                        if (ball.x >= wall.x && ball.x <= wall.x + wall.w &&
+                            ball.y >= wall.y && ball.y <= wall.y + wall.h) {
+                            safe = true;
+                        }
+                    }
+
+                    if (!safe) {
+                        strokes++; // Reset penalty score modification
+                        updateUI();
+                        resetBallToTee();
+                        return;
+                    }
+                }
+            }
+
+            // Hole Vector state interaction handling
+            const distToHole = Math.hypot(ball.x - hole.x, ball.y - hole.y);
+            if (distToHole < HOLE_RADIUS) {
+                // Slow down required to sink cleanly
+                if (Math.hypot(ball.vx, ball.vy) < 6) {
+                    triggerWinState();
+                }
+            }
+        }
+
+        function triggerWinState() {
+            gameOver = true;
+            ball.vx = 0;
+            ball.vy = 0;
+            ball.x = hole.x;
+            ball.y = hole.y;
+
+            let banner = "Par!";
+            const diff = strokes - coursePar;
+
+            if (strokes === 1) banner = "Hole-in-One!";
+            else if (diff === -1) banner = "Birdie!";
+            else if (diff === -2) banner = "Eagle!";
+            else if (diff > 0) banner = "Nice Try!";
+
+            document.getElementById('victoryBanner').innerText = banner;
+            document.getElementById('victoryScore').innerText = `Finished in ${strokes} ${strokes === 1 ? 'Stroke' : 'Strokes'}!`;
+            document.getElementById('victoryOverlay').classList.add('active');
+        }
+
+        function gameLoop() {
+            // Update physics positions
+            if (!gameOver) {
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+
+                ball.vx *= FRICTION;
+                ball.vy *= FRICTION;
+
+                if (Math.abs(ball.vx) < 0.05) ball.vx = 0;
+                if (Math.abs(ball.vy) < 0.05) ball.vy = 0;
+
+                checkCollisions();
+            }
+
+            // Rendering operations
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // Draw Hazards (Water Elements)
+            ctx.fillStyle = '#0ea5e9'; // Bright Neon Accent Blue
+            for (let hazard of hazards) {
+                ctx.fillRect(hazard.x, hazard.y, hazard.w, hazard.h);
+            }
+
+            // Draw Safe Fairway Paths/Bridges over water
+            for (let wall of walls) {
+                // In Level 3, some structures act as green grass paths over the water
+                if (currentCourseId === 3) {
+                    ctx.fillStyle = varColor('--fairway', '#15803d');
+                    ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+                }
+            }
+
+            // Draw Walls Obstacles
+            ctx.fillStyle = '#334155'; // Dark Slate Gray Walls
+            for (let wall of walls) {
+                // Draw normal structural accent borders if not rendering a path overlay
+                if (currentCourseId !== 3) {
+                    ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+                } else {
+                    // Draw clean minimalist divider paths lines
+                    ctx.strokeStyle = '#475569';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
+                }
+            }
+
+            // Draw Tee Area Marker ring
+            ctx.beginPath();
+            ctx.arc(startTee.x, startTee.y, 14, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw Target Hole
+            ctx.beginPath();
+            ctx.arc(hole.x, hole.y, HOLE_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = '#000000'; // Pure Black Core Hole Rim
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Draw Golf Ball
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            // Draw Active Slingshot Vector Aim Guidelines
+            if (isAiming) {
+                const dx = touchCurrentPos.x - ball.x;
+                const dy = touchCurrentPos.y - ball.y;
+                
+                // Project structural opposite firing path indicator line
+                const targetX = ball.x - dx;
+                const targetY = ball.y - dy;
+
+                ctx.beginPath();
+                ctx.moveTo(ball.x, ball.y);
+                ctx.lineTo(targetX, targetY);
+                ctx.strokeStyle = '#f43f5e'; // High visibility neon target indicator line
+                ctx.lineWidth = 3;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Draw touch interaction target anchor point
+                ctx.beginPath();
+                ctx.arc(touchCurrentPos.x, touchCurrentPos.y, 6, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(244, 63, 94, 0.5)';
+                ctx.fill();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Helper fallback helper for reading internal CSS variables accurately
+        function varColor(name, fallback) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+        }
+
+        // Initialize execution sequence
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
